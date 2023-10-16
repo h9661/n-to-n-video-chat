@@ -2,7 +2,7 @@ import express from "express";
 import morgan from "morgan";
 import session from "express-session";
 import cookieParser from "cookie-parser";
-import webSocket from "./socket";
+import webSocket from "./socket.js";
 
 const app = express();
 
