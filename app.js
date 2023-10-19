@@ -3,6 +3,8 @@ import morgan from "morgan";
 import session from "express-session";
 import cookieParser from "cookie-parser";
 import webSocket from "./socket.js";
+import path from "path";
+const __dirname = path.resolve();
 
 const app = express();
 
@@ -23,6 +25,11 @@ app.use(
     },
   })
 );
+
+app.get("/", (req, res) => {
+  // render index.html
+  res.sendFile(__dirname + "/views" + "/index.html");
+});
 
 const server = app.listen(app.get("port"), () => {
   console.log(app.get("port"), "번 포트에서 대기중");
