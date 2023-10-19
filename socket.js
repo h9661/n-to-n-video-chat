@@ -51,7 +51,7 @@ const webSocket = (server, app) => {
       socket.to(roomId).emit("joinRoom", {
         remoteId: socket.id,
       });
-      rooms[roomId][socket.id] = {};
+
       socket.emit("joinRoomResult", {
         result: true,
         roomId: roomId,
