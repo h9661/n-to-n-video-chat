@@ -72,34 +72,11 @@
   <script>
     const socket = io.connect("http://localhost:3000")
 
-    socket.on("createRoom", (data) => {
-      console.log("createRoom", data.roomId);
-      roomId = data.roomId;
-      document.getElementById("currentRoom").innerText = `Current room is ${roomId}`;
-    });
-
-    socket.on("joinRoomResult", (data) => {
-      if (data.result) {
-        console.log("joinRoomResult", data);
-        roomId = data.roomId;
-        document.getElementById("currentRoom").innerText = `Current room is ${roomId}`;
-      } else {
-        document.querySelector("#createBtn").disabled = false;
-        document.querySelector("#joinBtn").disabled = false;
-        alert("Failed to join room. Please try again.");
-      }
-    })
-
-    socket.on("joinRoom", (data) => {
-      let { remoteId } = data;
-
-      console.log("joined socket id:", remoteId);
-    })
-
+    // 공동 구역
     let localStream = null;
     let remoteStream = null;
     let roomId = null;
-    let peerConnections = [];
+    let peerConnections = {};
 
     let localVideo = document.getElementById("localVideo");
     let remoteVideo = document.getElementById("remoteVideo");
@@ -128,6 +105,7 @@
       createBtn.disabled = false;
       hangupBtn.disabled = false;
     }
+
     async function createRoom() {
       createBtn.disabled = true;
       joinBtn.disabled = true;
@@ -137,6 +115,7 @@
         socketId: socket.id
       });
     }
+
     function joinRoom(e) {
       document.querySelector("#createBtn").disabled = true;
       document.querySelector("#joinBtn").disabled = true;
@@ -155,6 +134,37 @@
       );
       roomDialog.open();
     }
+
+    // 기존에 방에 있는 사람이 받는 이벤트
+    socket.on("createRoom", (data) => {
+      console.log("createRoom", data.roomId);
+      roomId = data.roomId;
+      document.getElementById("currentRoom").innerText = `Current room is ${roomId}`;
+    });
+
+    socket.on("joinRoom", (data) => {
+      let { remoteId } = data;
+
+      console.log("joined socket id:", remoteId);
+    })
+
+
+
+
+    // 신규로 방에 입장하는 사람이 받는 이벤트
+    socket.on("joinRoomResult", (data) => {
+      if (data.result) {
+        console.log("joinRoomResult", data);
+        roomId = data.roomId;
+        document.getElementById("currentRoom").innerText = `Current room is ${roomId}`;
+      } else {
+        document.querySelector("#createBtn").disabled = false;
+        document.querySelector("#joinBtn").disabled = false;
+        alert("Failed to join room. Please try again.");
+      }
+    })
+
+
 
   </script>
 </body>
