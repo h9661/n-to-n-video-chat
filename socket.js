@@ -80,6 +80,24 @@ const webSocket = (server, app) => {
         remoteId: localId,
       });
     });
+
+    socket.on("iceFromRoom", (data) => {
+      let { roomId, localId, remoteId, candidate } = data;
+
+      socket.emit("iceFromRoom", {
+        candidate: candidate,
+        remoteId: localId,
+      });
+    });
+
+    socket.on("iceFromUser", (data) => {
+      let { roomId, localId, remoteId, candidate } = data;
+
+      socket.to(remoteId).emit("iceFromUser", {
+        candidate: candidate,
+        remoteId: localId,
+      });
+    });
   });
 };
 
