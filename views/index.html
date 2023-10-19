@@ -41,7 +41,7 @@
   </div>
   <div id="videos">
     <video id="localVideo" muted autoplay playsinline></video>
-    <video id="remoteVideo" style="display: none;" autoplay playsinline></video>
+    <video id="remoteVideo" autoplay playsinline></video>
   </div>
   <div class="mdc-dialog" id="room-dialog" role="alertdialog" aria-modal="true" aria-labelledby="my-dialog-title"
     aria-describedby="my-dialog-content">
@@ -133,6 +133,24 @@
         { once: true }
       );
       roomDialog.open();
+    }
+
+    function registerPeerConnectionListeners() {
+      peerConnection.addEventListener("icegatheringstatechange", () => {
+        console.log(`ICE gathering state changed: ${peerConnection.iceGatheringState}`);
+      });
+
+      peerConnection.addEventListener("connectionstatechange", () => {
+        console.log(`Connection state change: ${peerConnection.connectionState}`);
+      });
+
+      peerConnection.addEventListener("signalingstatechange", () => {
+        console.log(`Signaling state change: ${peerConnection.signalingState}`);
+      });
+
+      peerConnection.addEventListener("iceconnectionstatechange ", () => {
+        console.log(`ICE connection state change: ${peerConnection.iceConnectionState}`);
+      });
     }
 
     // 기존에 방에 있는 사람이 받는 이벤트
