@@ -135,7 +135,7 @@
       roomDialog.open();
     }
 
-    function registerPeerConnectionListeners() {
+    function registerPeerConnectionListeners(peerConnection) {
       peerConnection.addEventListener("icegatheringstatechange", () => {
         console.log(`ICE gathering state changed: ${peerConnection.iceGatheringState}`);
       });
@@ -153,24 +153,52 @@
       });
     }
 
-    // 기존에 방에 있는 사람이 받는 이벤트
     socket.on("createRoom", (data) => {
       console.log("createRoom", data.roomId);
       roomId = data.roomId;
       document.getElementById("currentRoom").innerText = `Current room is ${roomId}`;
     });
 
-    socket.on("joinRoom", (data) => {
+    // 기존에 방에 있는 사람이 받는 이벤트
+    socket.on("joinRoom", async (data) => {
       let { remoteId } = data;
 
       console.log("joined socket id:", remoteId);
+
+      peerConnections[remoteId] = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: ["stun:stun.l.google.com:19302"] // 구글 공개 STUN 서버
+          }
+        ]
+      });
+
+      registerPeerConnectionListeners(peerConnections[remoteId]);
+
+      const offer = await peerConnections[remoteId].createOffer();
+      await peerConnections[remoteId].setLocalDescription(offer);
+      console.log("sending offer to", remoteId);
+      socket.emit("offer", {
+        localId: socket.id,
+        remoteId: remoteId,
+        roomId: roomId,
+        offer: offer
+      })
+    })
+
+    socket.on("answer", async (data) => {
+      let { remoteId, answer } = data;
+
+      console.log("received answer from", remoteId);
+
+      await peerConnections[remoteId].setRemoteDescription(new RTCSessionDescription(answer));
     })
 
 
 
 
     // 신규로 방에 입장하는 사람이 받는 이벤트
-    socket.on("joinRoomResult", (data) => {
+    socket.on("joinRoomResult", async (data) => {
       if (data.result) {
         console.log("joinRoomResult", data);
         roomId = data.roomId;
@@ -180,6 +208,33 @@
         document.querySelector("#joinBtn").disabled = false;
         alert("Failed to join room. Please try again.");
       }
+    })
+
+    socket.on("offer", async (data) => {
+      let { remoteId, offer } = data;
+
+      console.log("received offer from", remoteId);
+
+      peerConnections[remoteId] = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: ["stun:stun.l.google.com:19302"] // 구글 공개 STUN 서버
+          }
+        ]
+      });
+
+      registerPeerConnectionListeners(peerConnections[remoteId]);
+
+      await peerConnections[remoteId].setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnections[remoteId].createAnswer();
+      await peerConnections[remoteId].setLocalDescription(answer);
+      console.log("sending answer to", remoteId);
+      socket.emit("answer", {
+        localId: socket.id,
+        remoteId: remoteId,
+        roomId: roomId,
+        answer: answer
+      })
     })
 
 
