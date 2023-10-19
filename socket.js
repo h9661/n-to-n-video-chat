@@ -60,6 +60,26 @@ const webSocket = (server, app) => {
       // 객체 inspection
       console.log(util.inspect(rooms, { showHidden: true, depth: Infinity }));
     });
+
+    socket.on("offer", async (data) => {
+      let { roomId, localId, remoteId, offer } = data;
+
+      // remoteId에게 offer를 전달한다.
+      socket.to(remoteId).emit("offer", {
+        offer: offer,
+        remoteId: localId,
+      });
+    });
+
+    socket.on("answer", async (data) => {
+      let { roomId, localId, remoteId, answer } = data;
+
+      // remoteId에게 answer를 전달한다.
+      socket.to(remoteId).emit("answer", {
+        answer: answer,
+        remoteId: localId,
+      });
+    });
   });
 };
 
