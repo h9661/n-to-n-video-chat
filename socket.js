@@ -84,7 +84,7 @@ const webSocket = (server, app) => {
     socket.on("iceFromRoom", (data) => {
       let { roomId, localId, remoteId, candidate } = data;
 
-      socket.emit("iceFromRoom", {
+      socket.to(remoteId).emit("iceFromRoom", {
         candidate: candidate,
         remoteId: localId,
       });
