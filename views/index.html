@@ -35,12 +35,19 @@
       <i class="material-icons mdc-button__icon" aria-hidden="true">close</i>
       <span class="mdc-button__label">Hangup</span>
     </button>
+    <button class="mdc-button mdc-button--raised" id="screenBtn">
+      <i class="material-icons mdc-button__icon" aria-hidden="true">screen_share</i>
+      <span class="mdc-button__label">Share screen</span>
+    </button>
   </div>
   <div>
     <span id="currentRoom"></span>
   </div>
   <div id="videos">
     <video id="localVideo" muted autoplay playsinline></video>
+  </div>
+  <div id="screens">
+    <video id="localScreen" muted autoplay playsinline></video>
   </div>
   <div class="mdc-dialog" id="room-dialog" role="alertdialog" aria-modal="true" aria-labelledby="my-dialog-title"
     aria-describedby="my-dialog-content">
@@ -75,20 +82,24 @@
 
     // 공동 구역
     let localStream = null;
+    let localScreenStream = null;
     let roomId = null;
     let peerConnections = {};
     let peerStreams = {};
 
     let localVideo = document.getElementById("localVideo");
+    let localScreen = document.getElementById("localScreen");
     let cameraBtn = document.getElementById("cameraBtn");
     let joinBtn = document.getElementById("joinBtn");
     let createBtn = document.getElementById("createBtn");
     let hangupBtn = document.getElementById("hangupBtn");
     let roomDialog = new mdc.dialog.MDCDialog(document.getElementById("room-dialog"));
+    let screenBtn = document.getElementById("screenBtn");
 
     cameraBtn.addEventListener("click", openUserMedia);
     createBtn.addEventListener("click", createRoom);
     joinBtn.addEventListener("click", joinRoom);
+    screenBtn.addEventListener("click", openLocalScreen);
 
     async function openUserMedia() {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -165,6 +176,19 @@
       remoteVideo.playsinline = true;
       remoteVideo.id = remoteId;
       document.getElementById("videos").appendChild(remoteVideo);
+    }
+
+    async function openLocalScreen() {
+      let screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+
+      localScreen.srcObject = screenStream;
+      localScreenStream = screenStream;
+
+      console.log("ScreenStream:", localScreen.srcObject);
+      screenBtn.disabled = true;
     }
 
     // 기존에 방에 있는 사람이 받는 이벤트
