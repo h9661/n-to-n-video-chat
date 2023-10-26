@@ -41,7 +41,6 @@
   </div>
   <div id="videos">
     <video id="localVideo" muted autoplay playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
   </div>
   <div class="mdc-dialog" id="room-dialog" role="alertdialog" aria-modal="true" aria-labelledby="my-dialog-title"
     aria-describedby="my-dialog-content">
@@ -76,13 +75,11 @@
 
     // 공동 구역
     let localStream = null;
-    let remoteStream = null;
     let roomId = null;
     let peerConnections = {};
+    let peerStreams = {};
 
     let localVideo = document.getElementById("localVideo");
-    let remoteVideo = document.getElementById("remoteVideo");
-
     let cameraBtn = document.getElementById("cameraBtn");
     let joinBtn = document.getElementById("joinBtn");
     let createBtn = document.getElementById("createBtn");
@@ -161,6 +158,15 @@
       document.getElementById("currentRoom").innerText = `Current room is ${roomId}`;
     });
 
+    function createNewRemoteVideo(remoteId, remoteStream) {
+      let remoteVideo = document.createElement("video");
+      remoteVideo.srcObject = remoteStream;
+      remoteVideo.autoplay = true;
+      remoteVideo.playsinline = true;
+      remoteVideo.id = remoteId;
+      document.getElementById("videos").appendChild(remoteVideo);
+    }
+
     // 기존에 방에 있는 사람이 받는 이벤트
     socket.on("joinRoom", async (data) => {
       let { remoteId } = data;
@@ -178,9 +184,10 @@
 
       registerPeerConnectionListeners(peerConnections[remoteId]);
 
-      remoteStream = new MediaStream();
-      remoteVideo.srcObject = remoteStream;
-      peerConnections[remoteId].addStream(localStream);
+      peerStreams[remoteId] = new MediaStream();
+      createNewRemoteVideo(remoteId, peerStreams[remoteId]);
+
+      await peerConnections[remoteId].addStream(localStream);
 
       const offer = await peerConnections[remoteId].createOffer();
       await peerConnections[remoteId].setLocalDescription(offer);
@@ -196,7 +203,7 @@
         console.log("Got remote track:", event.streams[0]);
         event.streams[0].getTracks().forEach((track) => {
           console.log("Add a track to the remoteStream:", track);
-          remoteStream.addTrack(track);
+          peerStreams[remoteId].addTrack(track);
         });
       };
 
@@ -265,15 +272,16 @@
 
       registerPeerConnectionListeners(peerConnections[remoteId]);
 
-      remoteStream = new MediaStream();
-      remoteVideo.srcObject = remoteStream;
+      peerStreams[remoteId] = new MediaStream();
+      createNewRemoteVideo(remoteId, peerStreams[remoteId]);
+
       await peerConnections[remoteId].addStream(localStream);
 
       peerConnections[remoteId].ontrack = (event) => {
         console.log("Got remote track:", event.streams[0]);
         event.streams[0].getTracks().forEach((track) => {
           console.log("Add a track to the remoteStream:", track);
-          remoteStream.addTrack(track);
+          peerStreams[remoteId].addTrack(track);
         });
       };
       await peerConnections[remoteId].setRemoteDescription(new RTCSessionDescription(offer));
@@ -301,6 +309,8 @@
           candidate: event.candidate,
         });
       });
+
+      console.log(peerConnections);
     });
 
     socket.on("iceFromRoom", async (data) => {

@@ -1,6 +1,4 @@
 import * as SocketIO from "socket.io";
-import { firestore, db } from "./firebase.js";
-import util from "util";
 
 const webSocket = (server, app) => {
   const io = new SocketIO.Server(server, { path: "/socket.io" });
@@ -15,9 +13,8 @@ const webSocket = (server, app) => {
       let roomId = generate16randomeString();
       console.log("방 생성", roomId);
 
-      // 방을 만들고, 방에 socketId를 key값으로 가지는 객체를 만들어서 넣어준다.
-      rooms[roomId] = {};
-      rooms[roomId][socket.id] = {};
+      rooms[roomId] = [];
+      rooms[roomId].push(socket.id);
 
       socket.join(roomId);
       socket.emit("createRoom", {
@@ -41,24 +38,21 @@ const webSocket = (server, app) => {
         return false;
       }
 
-      // 방에 있는 객체를 순회하며, 연결을 구성할 준비를 한다.
-      // callercandidate, calleecandidate, offer, answer등의 정보를 주고받을 수 있도록 한다.
-      for (let id in rooms[roomId]) {
-        rooms[roomId][id][socket.id] = { callercandidates: [], calleecandidates: [], offer: {}, answer: {} };
-      }
-
       // 방에 있는 객체에게 joinRoom 이벤트를 발생시킨다.
       socket.to(roomId).emit("joinRoom", {
         remoteId: socket.id,
       });
 
+      rooms[roomId].push(socket.id);
+      socket.join(roomId);
+
+      console.log("방 참여", roomId);
+      console.log("방에 입장한 사람들: ", rooms[roomId]);
+
       socket.emit("joinRoomResult", {
         result: true,
         roomId: roomId,
       });
-
-      // 객체 inspection
-      console.log(util.inspect(rooms, { showHidden: true, depth: Infinity }));
     });
 
     socket.on("offer", async (data) => {
