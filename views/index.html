@@ -8,6 +8,7 @@
   <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet" />
   <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="/main.css" />
 
   <!--
   <script defer src="/__/firebase/5.9.3/firebase-app.js"></script>
@@ -17,7 +18,7 @@
 </head>
 
 <body>
-  <h1>Welcome to FirebaseRTC!</h1>
+  <h1>화상챗 & 화면공유</h1>
   <div id="buttons">
     <button class="mdc-button mdc-button--raised" id="cameraBtn">
       <i class="material-icons mdc-button__icon" aria-hidden="true">perm_camera_mic</i>
@@ -34,6 +35,10 @@
     <button class="mdc-button mdc-button--raised" disabled id="hangupBtn">
       <i class="material-icons mdc-button__icon" aria-hidden="true">close</i>
       <span class="mdc-button__label">Hangup</span>
+    </button>
+    <button class="mdc-button mdc-button--raised" disabled id="screenBtn">
+      <i class="material-icons mdc-button__icon" aria-hidden="true">screen_share</i>
+      <span class="mdc-button__label">Share screen</span>
     </button>
   </div>
   <div>
@@ -74,9 +79,9 @@
     const socket = io.connect("http://localhost:3000");
 
     // 공동 구역
-    let localStream = null;
     let roomId = null;
     let peerConnections = {};
+    let screenPeerConnections = {};
     let peerStreams = {};
 
     let localVideo = document.getElementById("localVideo");
@@ -85,10 +90,12 @@
     let createBtn = document.getElementById("createBtn");
     let hangupBtn = document.getElementById("hangupBtn");
     let roomDialog = new mdc.dialog.MDCDialog(document.getElementById("room-dialog"));
+    let screenBtn = document.getElementById("screenBtn");
 
     cameraBtn.addEventListener("click", openUserMedia);
     createBtn.addEventListener("click", createRoom);
     joinBtn.addEventListener("click", joinRoom);
+    screenBtn.addEventListener("click", openLocalScreen);
 
     async function openUserMedia() {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -96,7 +103,7 @@
         video: true,
       });
       localVideo.srcObject = stream;
-      localStream = stream;
+      socket.stream = stream;
 
       console.log("Stream:", localVideo.srcObject);
       cameraBtn.disabled = true;
@@ -156,6 +163,8 @@
       console.log("createRoom", data.roomId);
       roomId = data.roomId;
       document.getElementById("currentRoom").innerText = `Current room is ${roomId}`;
+
+      screenBtn.disabled = false;
     });
 
     function createNewRemoteVideo(remoteId, remoteStream) {
@@ -165,6 +174,157 @@
       remoteVideo.playsinline = true;
       remoteVideo.id = remoteId;
       document.getElementById("videos").appendChild(remoteVideo);
+    }
+
+    function createNewRemoteScreen(remoteId, remoteStream) {
+      let remoteScreen = document.createElement("video");
+      remoteScreen.srcObject = remoteStream;
+      remoteScreen.autoplay = true;
+      remoteScreen.playsinline = true;
+      remoteScreen.id = remoteId;
+      document.getElementById("videos").appendChild(remoteScreen);
+    }
+
+    async function openLocalScreen() {
+      const screenSocket = io.connect("http://localhost:3000");
+
+      let screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+
+      screenSocket.stream = screenStream;
+
+      screenBtn.disabled = true;
+
+      // 방에 입장할 때
+      screenSocket.emit("joinRoom", {
+        roomId: roomId,
+      });
+
+      screenSocket.on("offer", async (data) => {
+        let { remoteId, offer } = data;
+
+        console.log("received offer from", remoteId);
+
+        screenPeerConnections[remoteId] = new RTCPeerConnection({
+          iceServers: [
+            {
+              urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"], // 구글 공개 STUN 서버
+            },
+          ],
+          iceCandidatePoolSize: 10,
+        });
+
+        registerPeerConnectionListeners(screenPeerConnections[remoteId]);
+
+        await screenPeerConnections[remoteId].addStream(screenSocket.stream);
+
+        await screenPeerConnections[remoteId].setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await screenPeerConnections[remoteId].createAnswer();
+        await screenPeerConnections[remoteId].setLocalDescription(answer);
+        console.log("sending answer to", remoteId);
+        screenSocket.emit("answer", {
+          localId: screenSocket.id,
+          remoteId: remoteId,
+          roomId: roomId,
+          answer: answer,
+        });
+
+        // collecting ice candidate
+        screenPeerConnections[remoteId].addEventListener("icecandidate", (event) => {
+          if (!event.candidate) {
+            console.log("Got final candidate!");
+            return;
+          }
+          console.log("Got candidate: ", event.candidate);
+          screenSocket.emit("iceFromUser", {
+            localId: screenSocket.id,
+            remoteId: remoteId,
+            roomId: roomId,
+            candidate: event.candidate,
+          });
+        });
+
+        console.log(screenPeerConnections);
+      });
+
+      screenSocket.on("iceFromRoom", async (data) => {
+        let { remoteId, candidate } = data;
+
+        console.log("received ice candidate from", remoteId);
+
+        try {
+          await screenPeerConnections[remoteId].addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error("Error adding received ice candidate", e);
+        }
+      });
+
+      // 기존에 방에 있을 때
+      screenSocket.on("joinRoom", async (data) => {
+        let { remoteId } = data;
+
+        console.log("joined socket id:", remoteId);
+
+        screenPeerConnections[remoteId] = new RTCPeerConnection({
+          iceServers: [
+            {
+              urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"], // 구글 공개 STUN 서버
+            },
+          ],
+          iceCandidatePoolSize: 10,
+        });
+
+        registerPeerConnectionListeners(screenPeerConnections[remoteId]);
+
+        await screenPeerConnections[remoteId].addStream(screenSocket.stream);
+
+        const offer = await screenPeerConnections[remoteId].createOffer();
+        await screenPeerConnections[remoteId].setLocalDescription(offer);
+        console.log("sending offer to", remoteId);
+        screenSocket.emit("offer", {
+          localId: screenSocket.id,
+          remoteId: remoteId,
+          roomId: roomId,
+          offer: offer,
+        });
+
+        // collecting ice candidate
+        screenPeerConnections[remoteId].addEventListener("icecandidate", (event) => {
+          if (!event.candidate) {
+            console.log("Got final candidate!");
+            return;
+          }
+          console.log("Got candidate: ", event.candidate);
+          screenSocket.emit("iceFromRoom", {
+            localId: screenSocket.id,
+            remoteId: remoteId,
+            roomId: roomId,
+            candidate: event.candidate,
+          });
+        });
+      });
+
+      screenSocket.on("answer", async (data) => {
+        let { remoteId, answer } = data;
+
+        console.log("received answer from", remoteId);
+
+        await screenPeerConnections[remoteId].setRemoteDescription(new RTCSessionDescription(answer));
+      });
+
+      screenSocket.on("iceFromUser", async (data) => {
+        let { remoteId, candidate } = data;
+
+        console.log("received ice candidate from", remoteId);
+
+        try {
+          await screenPeerConnections[remoteId].addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error("Error adding received ice candidate", e);
+        }
+      });
     }
 
     // 기존에 방에 있는 사람이 받는 이벤트
@@ -187,7 +347,7 @@
       peerStreams[remoteId] = new MediaStream();
       createNewRemoteVideo(remoteId, peerStreams[remoteId]);
 
-      await peerConnections[remoteId].addStream(localStream);
+      await peerConnections[remoteId].addStream(socket.stream);
 
       const offer = await peerConnections[remoteId].createOffer();
       await peerConnections[remoteId].setLocalDescription(offer);
@@ -275,7 +435,7 @@
       peerStreams[remoteId] = new MediaStream();
       createNewRemoteVideo(remoteId, peerStreams[remoteId]);
 
-      await peerConnections[remoteId].addStream(localStream);
+      await peerConnections[remoteId].addStream(socket.stream);
 
       peerConnections[remoteId].ontrack = (event) => {
         console.log("Got remote track:", event.streams[0]);
